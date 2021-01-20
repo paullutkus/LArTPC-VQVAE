@@ -6,8 +6,9 @@ from tensorflow.keras import backend as K
 import tensorflow_datasets as tfds
 import datasets.larcv
 
-from setup_model import build_vqvae
+from setup_model import build_vqvae, build_pixelcnn
 from argparser import train_parser
+from metrics import accuracy
 
 # import dataset
 # import config, set mnist option
@@ -29,16 +30,16 @@ def train(config):
 
     vqvae, vqvae_sampler, encoder, decoder, codes_sampler, get_vqvae_codebook = build_vqvae(config)
     vqvae.summary()
-
     history = vqvae.fit(x=ds_train, y=ds_train, epochs=config['vqvae_epochs'], 
                         batch_size=config['vqvae_batch_size'], 
                         validation_data=(ds_test, ds_test), verbose=2)
 
-    pixelcnn_prior, prior_sampler = build_pixelcnn(config, codes_sampler)
-    
-    pixelcnn_prior.compile(loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True), metrics=[accuracy],
-                           optimizer=keras.optimizers.Adam(config['pcnn_lr']))
+    z_train = encoder.predict(ds_train)
+    z_test = encoder.predict(ds_test)
 
+    pixelcnn_prior, prior_sampler = build_pixelcnn(config, codes_sampler) 
+    prior_history = pixelcnn_prior.fit(z_train, z_train, epochs=config['pcnn_epochs'], 
+                                       batch_size=config['pcnn_batch_size'], verbose=1)    
 
 def main():
     parser = train_parser()

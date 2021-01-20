@@ -1,3 +1,4 @@
+import numpy as np
 import tensorflow as tf
 import tensorflow.keras as keras
 from tensorflow.keras import backend as K
@@ -38,7 +39,7 @@ def gate(inputs):
     return K.tanh(x) + K.sigmoid(y)
 
 
-class MaskedConv2D(keras.layer.Layer):
+class MaskedConv2D(keras.layers.Layer):
     def __init__(self, kernel_size, out_dim, direction, mode, **kwargs):
         self.direction = direction # horizontal or vertical
         self.mode = mode # mask type 'a' or 'b'
@@ -75,7 +76,7 @@ def gated_masked_conv2d(v_stack_in, h_stack_in, out_dim, kernel, mask="b", resid
     kernel_size = (kernel // 2 + 1, kernel)
     padding = (kernel // 2, kernel // 2)
 
-    v_stack = keras.layers.ZeroPadding(padding=padding, name="v_pad_{}".format(i))(v_stack_in)
+    v_stack = keras.layers.ZeroPadding2D(padding=padding, name="v_pad_{}".format(i))(v_stack_in)
     v_stack = MaskedConv2D(kernel_size, out_dim*2, "v", mask, name="v_masked_conv_{}".format(i))(v_stack)
     v_stack = v_stack[:, :int(v_stack_in.get_shape()[-3]), :, :]
     v_stack_out = keras.layers.Lambda(lambda inputs: gate(inputs), name="v_gate_{}".format(i))(v_stack)
@@ -83,9 +84,9 @@ def gated_masked_conv2d(v_stack_in, h_stack_in, out_dim, kernel, mask="b", resid
     kernel_size = (1, kernel // 2 + 1)
     padding = (0, kernel // 2)
     h_stack = keras.layers.ZeroPadding2D(padding=padding, name="h_pad_{}".format(i))(h_stack_in)
-    h_stack = keras.MaskedConv2D(kernel_size, out_dim*2, "h", mask, name="h_masked_conv_{}".format(i))(h_stack)
+    h_stack = MaskedConv2D(kernel_size, out_dim*2, "h", mask, name="h_masked_conv_{}".format(i))(h_stack)
     h_stack = h_stack[:, :, :int(h_stack_in.get_shape()[-2]), :]
-    h_stack_1 = keras.layers.Conv2D(filter=out_dim*2, kernel_size=1, strides=(1, 1), name="v_to_h_{}".format(i))(v_stack)
+    h_stack_1 = keras.layers.Conv2D(filters=out_dim*2, kernel_size=1, strides=(1, 1), name="v_to_h_{}".format(i))(v_stack)
     h_stack_out = keras.layers.Lambda(lambda inputs: gate(inputs), name="h_gate_{}".format(i))(h_stack + h_stack_1)
 
     h_stack_out = keras.layers.Conv2D(filters=out_dim, kernel_size=1, strides=(1, 1), name="res_conv_{}".format(i))(h_stack_out)

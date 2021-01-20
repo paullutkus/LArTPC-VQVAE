@@ -141,7 +141,7 @@ def train_parser():
                         help='Batch size for PixelCNN training \
                             | (default: &(default)s)')
     # pcnn_epochs: number of epochs in vq-vae training
-    parser.add_argument('--pcnn_epochs', type=int, default='15',
+    parser.add_argument('--pcnn_epochs', type=int, default=15,
                         help='Number of epochs in PixelCNN training \
                             | (default: &(default)s)')
     # pcnn_lr: learning rate for pixelcnn optimizer

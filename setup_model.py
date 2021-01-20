@@ -5,7 +5,7 @@ import tensorflow.keras as keras
 from tensorflow.keras import backend as K
 
 from layers import *
-from metrics import mse_loss, custom_loss, zq_norm, ze_norm 
+from metrics import mse_loss, custom_loss, zq_norm, ze_norm, accuracy 
 
 ##############################
 ##### Encoder Definition #####
@@ -76,7 +76,7 @@ def build_vqvae(config):
     generated = decoder(z_q)
     vqvae_sampler = keras.Model(inputs=codebook_indices, outputs=generated, name='vq-vae_sampler')
 
-    # what is this for???
+    # get vectors from indices
     indices = keras.layers.Input(shape=(size, size), name='codes_sampler_inputs', dtype='int32')
     z_q = sampling_layer(indices)
     codes_sampler = keras.Model(inputs=indices, outputs=z_q, name='codes_sampler')
@@ -99,7 +99,7 @@ def build_vqvae(config):
 ##########################
 def build_pixelcnn(config, codes_sampler):
     size = config['size']
-    pixelcnn_prior_inputs = K.layers.Input(shape=(size, size), name='pixelcnn_prior_inputs', dtype=tf.int32)
+    pixelcnn_prior_inputs = keras.layers.Input(shape=(size, size), name='pixelcnn_prior_inputs', dtype=tf.int32)
     z_q = codes_sampler(pixelcnn_prior_inputs) # maps indices to the actual codebook
     
     v_stack_in, h_stack_in = z_q, z_q
@@ -107,18 +107,22 @@ def build_pixelcnn(config, codes_sampler):
         mask = 'b' if i > 0 else 'a'
         kernel_size = 3 if i > 0 else 7
         residual = True if i > 0 else False
-        v_stack_in, h_stack_in = gated_masked_conv2d(v_stack_in, h_stack_in, num_feature_maps,
+        v_stack_in, h_stack_in = gated_masked_conv2d(v_stack_in, h_stack_in, config['pcnn_features'],
                                                      kernel=kernel_size, residual=residual, i=i + 1)
 
-    fc1 = K.layers.Conv2D(filters=config['pcnn_features'], kernel_size=1, name="fc1")(h_stack_in)
-    fc2 = K.layers.Conv2D(filters=config['k'], kernel_size=1, name="fc2")(fc1) 
+    fc1 = keras.layers.Conv2D(filters=config['pcnn_features'], kernel_size=1, name="fc1")(h_stack_in)
+    fc2 = keras.layers.Conv2D(filters=config['k'], kernel_size=1, name="fc2")(fc1) 
     # activity_regularizer=K.regularizers.l1(l1=7.5e-4)
     # outputs logits for probabilities of codebook indices for each cell
 
-    pixelcnn_prior = K.Model(inputs=pixelcnn_prior_inputs, outputs=fc2, name='pixelcnn-prior')
+    pixelcnn_prior = keras.Model(inputs=pixelcnn_prior_inputs, outputs=fc2, name='pixelcnn-prior')
 
     # Distribution to sample from the pixelcnn
     dist = tfp.distributions.Categorical(logits=fc2)
     sampled = dist.sample()
-    prior_sampler = K.Model(inputs=pixelcnn_prior_inputs, outputs=sampled, name='pixelcnn-prior-sampler')
+    prior_sampler = keras.Model(inputs=pixelcnn_prior_inputs, outputs=sampled, name='pixelcnn-prior-sampler')
+    pixelcnn_prior.compile(loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True), metrics=[accuracy],
+                           optimizer=keras.optimizers.Adam(config['pcnn_lr']))
+
+
     return pixelcnn_prior, prior_sampler

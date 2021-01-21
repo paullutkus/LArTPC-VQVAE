@@ -1,4 +1,5 @@
 import tensorflow as tf
+from tensorflow.keras import backend as K
 
 
 def mse_loss(ground_truth, predictions):
@@ -26,3 +27,9 @@ def ze_norm(y_true, y_pred):
     z_e, _ = tf.split(y_pred, 2, axis=-1)
     return tf.reduce_mean(tf.norm(z_e, axis=-1))
 
+def accuracy(y_true, y_pred):
+    size = int(y_pred.get_shape()[-2])
+    k = int(y_pred.get_shape()[-1])
+    y_true = tf.reshape(y_true, (-1, size * size))
+    y_pred = tf.reshape(y_pred, (-1, size * size, k))
+    return K.cast(K.equal(y_true, K.cast(K.argmax(y_pred, axis=-1), K.floatx())), K.floatx())

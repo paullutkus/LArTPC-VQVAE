@@ -1,0 +1,4 @@
+*.so
+dict_*
+*.o
+*.rootmap

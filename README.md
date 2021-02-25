@@ -17,3 +17,16 @@ in the ```argparser.py``` file.
 
 
 3: Run a training script using ```source [script_name].sh```. 
+
+When loading VQVAE, the following list of custom objects must
+be included:
+
+```
+vqvae = keras.models.load_model("vqvae_save", 
+				custom_objects={"custom_loss":custom_loss,
+                                                "latent_loss":custom_loss(config["beta"]),
+                                                "zq_norm":zq_norm,
+                                                "ze_norm":ze_norm,
+                                                "mse_loss":mse_loss,
+                                                "accuracy":accuracy})
+'''

@@ -61,11 +61,14 @@ def build_vqvae(config):
     decoder = keras.Model(inputs=decoder_inputs, outputs=decoder_out, name='decoder')
 
     # training layers
-    sampling_layer = keras.layers.Lambda(lambda x: vector_quantizer.sample(x), name='sample_from_codebook')
+    sampling_layer = ApplyQuantization(vector_quantizer, name="sample_from_codebook") 
+    #sampling_layer = keras.layers.Lambda(lambda x: vector_quantizer.sample(x), name='sample_from_codebook')
     z_q = sampling_layer(codebook_indices)
     codes = tf.stack([z_e, z_q], axis=-1)
-    codes = keras.layers.Lambda(lambda x: x, name='latent_codes')(codes)
-    straight_through = keras.layers.Lambda(lambda x: x[1] + tf.stop_gradient(x[0] - x[1]), name='straight_through_estimator') 
+    codes = SetName(name='latent_codes')(codes)   
+    #codes = keras.layers.Lambda(lambda x: x, name='latent_codes')(codes)
+    straight_through = StraightThroughEstimator(name='straight_through_estimator') 
+    #straight_through = keras.layers.Lambda(lambda x: x[1] + tf.stop_gradient(x[0] - x[1]), name='straight_through_estimator') 
     straight_through_zq = straight_through([z_q, z_e])
     reconstructed = decoder(straight_through_zq)
     vqvae = keras.Model(inputs=encoder_inputs, outputs=[reconstructed, codes], name='vq-vae')
@@ -100,9 +103,10 @@ def build_vqvae(config):
 def build_pixelcnn(config, codes_sampler):
     size = config['size']
     pixelcnn_prior_inputs = keras.layers.Input(shape=(size, size), name='pixelcnn_prior_inputs', dtype=tf.int32)
-    z_q = codes_sampler(pixelcnn_prior_inputs) # maps indices to the actual codebook
-    
+    z_q = codes_sampler(pixelcnn_prior_inputs) # maps indices to the actual codebook  
     v_stack_in, h_stack_in = z_q, z_q
+    #print("v_stack_in:", v_stack_in)
+    #print("h_stack_in:", h_stack_in)
     for i in range(config['pcnn_blocks']):
         mask = 'b' if i > 0 else 'a'
         kernel_size = 3 if i > 0 else 7

@@ -14,11 +14,14 @@ class VectorQuantizer(keras.layers.Layer):
     def build(self, input_shape):
         self.d = int(input_shape[-1])
         rand_init = keras.initializers.VarianceScaling(distribution="uniform")
-        self.codebook = self.add_weight(shape=(self.k, self.d), initializer=rand_init, trainable=True)
+        self.codebook = self.add_weight(shape=(self.k, self.d), initializer=rand_init, trainable=True,
+                                        name="codebook")
         
     def call(self, inputs):
         lookup_ = tf.reshape(self.codebook, shape=(1, 1, 1, self.k, self.d))
         z_e = tf.expand_dims(inputs, -2)
+        #print("z_e:", z_e.shape)
+        #print("lookup_:", lookup_.shape)
         dist = tf.norm(z_e - lookup_, axis=-1)
         k_index = tf.argmin(dist, axis=-1)
         return k_index
@@ -29,15 +32,49 @@ class VectorQuantizer(keras.layers.Layer):
         z_q = lookup_ * k_index_one_hot[..., None]
         z_q = tf.reduce_sum(z_q, axis=-2)
         return z_q
+    
+    def get_config(self):
+        return {"k": self.k}
 
+class ApplyQuantization(keras.layers.Layer):
+    def __init__(self, quantizer, **kwargs):
+        super(ApplyQuantization, self).__init__(**kwargs)
+        self.quantizer = quantizer
+    
+    def call(self, inputs):
+        #print(inputs.shape)
+        return self.quantizer.sample(inputs)
+
+    def get_config(self):
+        return {"quantizer": self.quantizer}
+
+class SetName(keras.layers.Layer):
+    def __init__(self, **kwargs):
+        super(SetName, self).__init__(**kwargs)
+
+    def call(self, inputs):
+        return inputs
+
+class StraightThroughEstimator(keras.layers.Layer):
+    def __init__(self, **kwargs):
+        super(StraightThroughEstimator, self).__init__(**kwargs)
+    
+    def call(self, inputs):
+        return inputs[1] + tf.stop_gradient(inputs[0] - inputs[1]) 
 
 ####################
 ##### PixelCNN #####
 ####################
-def gate(inputs):
+def gate(inputs): 
     x, y = tf.split(inputs, 2, axis=-1)
     return K.tanh(x) + K.sigmoid(y)
 
+class ApplyGate(keras.layers.Layer):
+    def __init__(self, **kwargs):
+        super(ApplyGate, self).__init__(**kwargs)
+
+    def call(self, inputs):
+        return gate(inputs)
 
 class MaskedConv2D(keras.layers.Layer):
     def __init__(self, kernel_size, out_dim, direction, mode, **kwargs):
@@ -79,7 +116,8 @@ def gated_masked_conv2d(v_stack_in, h_stack_in, out_dim, kernel, mask="b", resid
     v_stack = keras.layers.ZeroPadding2D(padding=padding, name="v_pad_{}".format(i))(v_stack_in)
     v_stack = MaskedConv2D(kernel_size, out_dim*2, "v", mask, name="v_masked_conv_{}".format(i))(v_stack)
     v_stack = v_stack[:, :int(v_stack_in.get_shape()[-3]), :, :]
-    v_stack_out = keras.layers.Lambda(lambda inputs: gate(inputs), name="v_gate_{}".format(i))(v_stack)
+    v_stack_out = ApplyGate(name="v_gate_{}".format(i))(v_stack)
+    #v_stack_out = keras.layers.Lambda(lambda inputs: gate(inputs), name="v_gate_{}".format(i))(v_stack)
 
     kernel_size = (1, kernel // 2 + 1)
     padding = (0, kernel // 2)
@@ -87,7 +125,8 @@ def gated_masked_conv2d(v_stack_in, h_stack_in, out_dim, kernel, mask="b", resid
     h_stack = MaskedConv2D(kernel_size, out_dim*2, "h", mask, name="h_masked_conv_{}".format(i))(h_stack)
     h_stack = h_stack[:, :, :int(h_stack_in.get_shape()[-2]), :]
     h_stack_1 = keras.layers.Conv2D(filters=out_dim*2, kernel_size=1, strides=(1, 1), name="v_to_h_{}".format(i))(v_stack)
-    h_stack_out = keras.layers.Lambda(lambda inputs: gate(inputs), name="h_gate_{}".format(i))(h_stack + h_stack_1)
+    h_stack_out = ApplyGate(name="h_gate_{}".format(i))(h_stack + h_stack_1)  
+    #h_stack_out = keras.layers.Lambda(lambda inputs: gate(inputs), name="h_gate_{}".format(i))(h_stack + h_stack_1)
 
     h_stack_out = keras.layers.Conv2D(filters=out_dim, kernel_size=1, strides=(1, 1), name="res_conv_{}".format(i))(h_stack_out)
     if residual:

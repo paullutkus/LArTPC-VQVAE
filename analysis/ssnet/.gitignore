@@ -2,3 +2,7 @@
 dict_*
 *.o
 *.rootmap
+test_read_loop
+*.root
+*.ipynb_checkpoints
+

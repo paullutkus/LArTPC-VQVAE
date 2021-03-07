@@ -15,8 +15,6 @@ int main( int nargs, char** argv ) {
   Py_Initialize();
   
   larcv::SetPyUtil();
-
-
   
   int batchsize = 16;
   int nbatches = 100;
@@ -31,6 +29,11 @@ int main( int nargs, char** argv ) {
   
   ssnet::SSNetDataLoader loader;
   loader.setup( "test_10k.root", 0, true );
+  //loader.set_read_mode( ssnet::SSNetDataLoader::kSequential);
+  //loader.set_read_mode( ssnet::SSNetDataLoader::kCompleteRandom );
+  //loader.set_read_mode( ssnet::SSNetDataLoader::kPartialRandom );
+  loader.set_read_mode( ssnet::SSNetDataLoader::kRandomSubBatch );  
+  
   for (int i=0; i<nbatches; i++) {
     PyObject* dict = loader.makeTrainingDataDict( batchsize, 2 );
     Py_DECREF( dict );

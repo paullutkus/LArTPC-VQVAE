@@ -18,7 +18,7 @@ print "Train UResNet"
 
 flags = URESNET_FLAGS()
 flags.DATA_DIM = 2
-flags.URESNET_FILTERS = 16
+flags.URESNET_FILTERS = 32
 flags.URESNET_NUM_STRIDES = 4
 flags.SPATIAL_SIZE = 256
 flags.NUM_CLASS = 3 # bg, shower, track
@@ -52,10 +52,11 @@ optimizer = torch.optim.Adam(model.parameters(),
 # TENSORBOARD
 writer = SummaryWriter()
 
-NUMITERS = 25000
+NENTRIES=15000
+ITERS_PER_EPOCH = NENTRIES/flags.BATCH_SIZE
+NUMITERS = int(20*ITERS_PER_EPOCH)
 ITERS_PER_VALID = 10
 ITERS_PER_TRAIN_STDOUT = 5
-ITERS_PER_EPOCH = 40e3/flags.BATCH_SIZE
 ITERS_PER_CHECKPOINT = 1000
 weight_t = None
 def calc_learning_rate( startlr, epoch ):
@@ -72,16 +73,22 @@ for iiter in range(NUMITERS):
     
     # training forward pass
     traindata = train_loader.makeTrainingDataDict( flags.BATCH_SIZE, 2 )
-    # make weights
-    image_t = torch.from_numpy( traindata['image_t'] ).to(DEVICE)
-    label_t = torch.from_numpy( traindata['label_t'] ).long().to(DEVICE)
+    # condition image
+    img   = traindata['image_t']
+    label = traindata['label_t']
+    label[img<10] = 0
+    img[img<10] = 0.0
+    img[img>1000] = 1000.0
+    image_t = torch.from_numpy( img ).to(DEVICE)
+    label_t = torch.from_numpy( label ).long().to(DEVICE)
+    # make weights    
     w_t = torch.ones( label_t.shape ).to(DEVICE)
     num_zeros  = (label_t == 0).sum().float()
     num_shower = (label_t == 1).sum().float()
     num_track  = (label_t == 2).sum().float()
-    w_t[ label_t==0 ] *= 1.0/num_zeros
-    w_t[ label_t==1 ] *= 1.0/num_shower
-    w_t[ label_t==2 ] *= 1.0/num_track   
+    w_t[ label_t==0 ] *= 1.0-num_zeros/(num_zeros+num_shower+num_track)
+    w_t[ label_t==1 ] *= 1.0-num_shower/(num_zeros+num_shower+num_track)
+    w_t[ label_t==2 ] *= 1.0-num_track/(num_zeros+num_shower+num_track)
     #print "  num shower: ",num_shower
     #print "  num track: ",num_track
 
@@ -93,11 +100,12 @@ for iiter in range(NUMITERS):
     loss,acc = lossfunc.forward( out_t, image_t, label_t, w_t )
     loss /= float(flags.BATCH_SIZE)
     if iiter%ITERS_PER_TRAIN_STDOUT==0:
-        print "[TRAIN ITER: ",iiter,"]"        
+        print "[TRAIN ITER: ",iiter,"]"
+        print "  lr=",lr
         print "  loss: ",loss
-        print "  acc: ",acc/float(flags.BATCH_SIZE)
-        writer.add_scalars('data/train_loss', {"loss":loss.item()}, epoch )
-        writer.add_scalars('data/train_acc', {"acc":acc}, epoch )
+        print "  acc: ",acc/float(flags.BATCH_SIZE)        
+        writer.add_scalars('data/train_loss', {"loss":loss.item()}, iiter )
+        writer.add_scalars('data/train_acc', {"acc":acc}, iiter )
 
     loss.backward()
     optimizer.step()
@@ -107,6 +115,11 @@ for iiter in range(NUMITERS):
         print "[VALID ITER: ",iiter,"]"
         model.eval()
         validdata = valid_loader.makeTrainingDataDict( flags.BATCH_SIZE, 2 )
+        vimg   = validdata['image_t']
+        vlabel = validdata['label_t']
+        vlabel[vimg<10] = 0
+        vimg[vimg<10] = 0.0
+        vimg[vimg>1000] = 1000.0   
         vimage_t = torch.from_numpy( validdata['image_t'] ).to(DEVICE)
         vlabel_t = torch.from_numpy( validdata['label_t'] ).to(DEVICE)
         with torch.no_grad():
@@ -115,17 +128,17 @@ for iiter in range(NUMITERS):
             vnum_zeros  = (vlabel_t == 0).sum().float()
             vnum_shower = (vlabel_t == 1).sum().float()
             vnum_track  = (vlabel_t == 2).sum().float()
-            vw_t[ vlabel_t==0 ] *= 1.0/vnum_zeros
-            vw_t[ vlabel_t==1 ] *= 1.0/vnum_shower
-            vw_t[ vlabel_t==2 ] *= 1.0/vnum_track   
+            vw_t[ vlabel_t==0 ] *= 1.0-vnum_zeros/(vnum_zeros+vnum_shower+vnum_track)
+            vw_t[ vlabel_t==1 ] *= 1.0-vnum_shower/(vnum_zeros+vnum_shower+vnum_track)
+            vw_t[ vlabel_t==2 ] *= 1.0-vnum_track/(vnum_zeros+vnum_shower+vnum_track)
             
             vloss, vacc = lossfunc.forward( vout_t, vimage_t, vlabel_t, vw_t )
             vloss /= float(flags.BATCH_SIZE)
             vacc /= float(flags.BATCH_SIZE)
             print "  valid-loss: ",vloss
             print "  valid-acc: ",vacc
-            writer.add_scalars('data/valid_loss', {"loss":vloss.item()}, epoch )
-            writer.add_scalars('data/valid_acc', {"acc":vacc}, epoch )
+            writer.add_scalars('data/valid_loss', {"loss":vloss.item()}, iiter )
+            writer.add_scalars('data/valid_acc', {"acc":vacc}, iiter )
             
 
     if iiter%ITERS_PER_CHECKPOINT==0 and iiter>0:

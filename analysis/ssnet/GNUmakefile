@@ -12,13 +12,16 @@ LIBS += `python-config --libs`
 
 all: libssnetdata.so test_read_loop
 
-libssnetdata.so: SSNetDataLoader.o dict_ssnetdata.o
+libssnetdata.so: SSNetDataLoader.o FillScoreHist.o dict_ssnetdata.o
 	$(CC) $(LDFLAGS) -o $@ $^ $(LIBS)
 
 SSNetDataLoader.o: SSNetDataLoader.cxx SSNetDataLoader.h 
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
-dict_ssnetdata.o: SSNetDataLoader.h
+%.o: %.cxx %.h 
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
+dict_ssnetdata.o: SSNetDataLoader.h FillScoreHist.h
 	rootcling -f $(basename $@).cxx -rml libssnetdata.so -c $(INCLUDES) $^ LinkDef.h
 	$(CC) $(CFLAGS) $(INCLUDES) -c $(basename $@).cxx -o $@
 

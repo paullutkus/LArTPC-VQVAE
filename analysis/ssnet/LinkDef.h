@@ -11,6 +11,7 @@
 
 #pragma link C++ namespace ssnet;
 #pragma link C++ class ssnet::SSNetDataLoader+;
+#pragma link C++ class ssnet::FillScoreHist+;
 
 //ADD_NEW_CLASS ... do not change this line
 #endif

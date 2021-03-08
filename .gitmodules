@@ -1,0 +1,3 @@
+[submodule "analysis/ssnet/uresnet_pytorch"]
+	path = analysis/ssnet/uresnet_pytorch
+	url = https://github.com/NuTufts/uresnet_pytorch.git

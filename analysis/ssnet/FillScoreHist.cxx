@@ -34,9 +34,9 @@ namespace ssnet {
       throw std::runtime_error("Cannot get carray for output score tensor");
     }
 
-    LARCV_NORMAL() << "image size: (" << img_dims[0] << "," << img_dims[1] << ")" << std::endl;
-    LARCV_NORMAL() << "score image size: (" << score_dims[0] << "," << score_dims[1] << "," << score_dims[2] << ")" << std::endl;
-    LARCV_NORMAL() << "number of class histograms: " << class_score_hist.size() << std::endl;
+    // LARCV_NORMAL() << "image size: (" << img_dims[0] << "," << img_dims[1] << ")" << std::endl;
+    // LARCV_NORMAL() << "score image size: (" << score_dims[0] << "," << score_dims[1] << "," << score_dims[2] << ")" << std::endl;
+    // LARCV_NORMAL() << "number of class histograms: " << class_score_hist.size() << std::endl;
     
     // if ( true )
     //   return 0;

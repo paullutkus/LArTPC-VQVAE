@@ -18,7 +18,7 @@ print "Train UResNet"
 
 flags = URESNET_FLAGS()
 flags.DATA_DIM = 2
-flags.URESNET_FILTERS = 32
+flags.URESNET_FILTERS = 16
 flags.URESNET_NUM_STRIDES = 4
 flags.SPATIAL_SIZE = 256
 flags.NUM_CLASS = 3 # bg, shower, track
@@ -43,6 +43,29 @@ train_loader.setup( "~/data/larcv1_ssnet_data/train_15k.root", 0, True )
 valid_loader = ssnet.SSNetDataLoader()
 valid_loader.set_read_mode( ssnet.SSNetDataLoader.kRandomSubBatch )
 valid_loader.setup( "~/data/larcv1_ssnet_data/test_10k.root", 0, True )
+
+def augment_data( img, label, threshold=10.0, maxpix=500.0, pixscale=255.0, rescale_factor=0.10 ):
+    """ we do some rudimentary data augmentation """
+    for i in range(img.shape[0]):
+        img *= (1.0 + rescale_factor*2.0*(np.random.random()-0.5))
+
+    label[ img<10 ] = 0
+    img[ img<10 ] = 0
+    img[ img>maxpix ] = maxpix
+    img *= pixscale/maxpix
+
+    if np.random.random()>0.5:
+        img = np.transpose( img, axes=(0,1,3,2))
+        label = np.transpose( label, axes=(0,1,3,2))
+    if np.random.random()>0.5:
+        img = np.flip( img, axis=3 )
+        label = np.flip( label, axis=3 )
+    if np.random.random()>0.5:
+        img = np.flip( img, axis=2 )
+        label = np.flip( label, axis=2 )
+
+    return img.copy(), label.copy()
+    
 
 # OPTIMIZER
 optimizer = torch.optim.Adam(model.parameters(),
@@ -76,9 +99,7 @@ for iiter in range(NUMITERS):
     # condition image
     img   = traindata['image_t']
     label = traindata['label_t']
-    label[img<10] = 0
-    img[img<10] = 0.0
-    img[img>1000] = 1000.0
+    img,label = augment_data( img, label )
     image_t = torch.from_numpy( img ).to(DEVICE)
     label_t = torch.from_numpy( label ).long().to(DEVICE)
     # make weights    
@@ -117,9 +138,7 @@ for iiter in range(NUMITERS):
         validdata = valid_loader.makeTrainingDataDict( flags.BATCH_SIZE, 2 )
         vimg   = validdata['image_t']
         vlabel = validdata['label_t']
-        vlabel[vimg<10] = 0
-        vimg[vimg<10] = 0.0
-        vimg[vimg>1000] = 1000.0   
+        vimg,vlabel = augment_data( vimg, vlabel )        
         vimage_t = torch.from_numpy( validdata['image_t'] ).to(DEVICE)
         vlabel_t = torch.from_numpy( validdata['label_t'] ).to(DEVICE)
         with torch.no_grad():

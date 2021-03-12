@@ -20,7 +20,7 @@ flags.NUM_CLASS = 3 # bg, shower, track
 flags.LEARNING_RATE = 1.0e-3
 flags.WEIGHT_DECAY = 1.0e-4
 flags.BATCH_SIZE = 16
-flags.checkpoint_file = "../checkpoint.18000th.tar" # 16 features, images conditioned"
+flags.checkpoint_file = "../run3/checkpoint.18000th.tar" # 16 features, images conditioned"
 flags.DEVNAME = "cuda:0"
 
 DEVICE = torch.device(flags.DEVNAME)
@@ -35,11 +35,16 @@ model.eval()
 #print model
 
 # LOAD SAMPLES
-images  = np.load("/home/twongj01/data/larcv1_ssnet_data/test_images_for_vqvae/test_images.npy")
+if len(sys.argv)==2:
+    images  = np.load(sys.argv[1])
+else:
+    images  = np.load("/home/twongj01/data/larcv1_ssnet_data/test_images_for_vqvae/test_images.npy")
+    
 print images.shape
 # switch to pytorch form
 images = images.reshape( (images.shape[0],1,64,64) ).astype(np.float32)
-images *= 255.0/10.0
+THRESHOLD = 0.2
+#images *= 255.0/10.0
 print images.shape,images.dtype
 
 # SETUP OUTPUT
@@ -50,16 +55,13 @@ from ROOT import ssnet
 fout = rt.TFile("out_ssnet_hists.root","recreate")
 
 filler = ssnet.FillScoreHist() # c++ routine to speed up filling histogram
+filler.define_hists()
 PIXCLASSES = ["bg","shower","track"]
-hsample_v = std.vector("TH1D")(3)
-for n,classname in enumerate(PIXCLASSES):
-    hsample_v[n] = rt.TH1D("hsample_%s"%(classname),"",1000,0,1.0)
 
 # DEFINE LOOP PARAMS
 NIMAGES = images.shape[0]
 NITERS = int(NIMAGES/flags.BATCH_SIZE)
 softmax = torch.nn.Softmax( dim=1 )
-
 
 for iiter in range(NITERS):
 
@@ -84,14 +86,16 @@ for iiter in range(NITERS):
     pred_t = pred_t.cpu().numpy()
 
     # fill histograms via the fillter class
+    nabove_tot = 0
     for ib in range(bsize):
-        npix = filler.fillHist( in_images[ib,0,:,:], pred_t[ib,:,:,:], hsample_v, 10.0 )
-   
+        npix = filler.fillInternalHists( in_images[ib,0,:,:],
+                                         pred_t[ib,:,:,:],
+                                         THRESHOLD )
+        nabove_tot += npix
+    print "Num above thresh in batch: ",nabove_tot
 
 # Write histograms to disk
-for i in range(hsample_v.size()):
-    hsample_v[i].Write()
-
+fout.Write()
 fout.Close()
     
         

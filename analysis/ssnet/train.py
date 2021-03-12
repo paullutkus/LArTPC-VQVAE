@@ -25,6 +25,7 @@ flags.NUM_CLASS = 3 # bg, shower, track
 flags.LEARNING_RATE = 1.0e-3
 flags.WEIGHT_DECAY = 1.0e-4
 flags.BATCH_SIZE = 16
+flags.DATA_AUGMENT_MODE = 1
 
 DEVICE = torch.device("cuda:0")
 
@@ -65,6 +66,36 @@ def augment_data( img, label, threshold=10.0, maxpix=500.0, pixscale=255.0, resc
         label = np.flip( label, axis=2 )
 
     return img.copy(), label.copy()
+
+def augment_data_b( img, label, pixscale=10.0, rescale_factor=0.10 ):
+    """ preparing data the same way paul did """
+    
+    for ib in range(img.shape[0]):
+
+        img1 = img[ib,:,:,:]
+        
+        # apply augmentation scaling
+        img1 *= (1.0 + rescale_factor*2.0*(np.random.random()-0.5))
+        
+        # get max
+        imgmax = np.max( img1 )
+
+        if imgmax>0:
+            img1 *= 10.0/imgmax
+    
+    # apply flips, transposes
+    if np.random.random()>0.5:
+        img = np.transpose( img, axes=(0,1,3,2))
+        label = np.transpose( label, axes=(0,1,3,2))
+    if np.random.random()>0.5:
+        img = np.flip( img, axis=3 )
+        label = np.flip( label, axis=3 )
+    if np.random.random()>0.5:
+        img = np.flip( img, axis=2 )
+        label = np.flip( label, axis=2 )
+
+    return img.copy(), label.copy()
+        
     
 
 # OPTIMIZER
@@ -99,7 +130,10 @@ for iiter in range(NUMITERS):
     # condition image
     img   = traindata['image_t']
     label = traindata['label_t']
-    img,label = augment_data( img, label )
+    if flags.DATA_AUGMENT_MODE==1:
+        img,label = augment_data_b( img, label )
+    else:
+        img,label = augment_data( img, label )
     image_t = torch.from_numpy( img ).to(DEVICE)
     label_t = torch.from_numpy( label ).long().to(DEVICE)
     # make weights    
@@ -120,11 +154,12 @@ for iiter in range(NUMITERS):
 
     loss,acc = lossfunc.forward( out_t, image_t, label_t, w_t )
     loss /= float(flags.BATCH_SIZE)
+    acc /= float(flags.BATCH_SIZE)
     if iiter%ITERS_PER_TRAIN_STDOUT==0:
         print "[TRAIN ITER: ",iiter,"]"
         print "  lr=",lr
         print "  loss: ",loss
-        print "  acc: ",acc/float(flags.BATCH_SIZE)        
+        print "  acc: ",acc
         writer.add_scalars('data/train_loss', {"loss":loss.item()}, iiter )
         writer.add_scalars('data/train_acc', {"acc":acc}, iiter )
 
@@ -138,7 +173,10 @@ for iiter in range(NUMITERS):
         validdata = valid_loader.makeTrainingDataDict( flags.BATCH_SIZE, 2 )
         vimg   = validdata['image_t']
         vlabel = validdata['label_t']
-        vimg,vlabel = augment_data( vimg, vlabel )        
+        if flags.DATA_AUGMENT_MODE==1:
+            vimg,vlabel = augment_data_b( vimg, vlabel )
+        else:
+            vimg,vlabel = augment_data( vimg, vlabel )                    
         vimage_t = torch.from_numpy( validdata['image_t'] ).to(DEVICE)
         vlabel_t = torch.from_numpy( validdata['label_t'] ).to(DEVICE)
         with torch.no_grad():

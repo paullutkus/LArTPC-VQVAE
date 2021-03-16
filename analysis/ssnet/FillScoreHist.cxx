@@ -45,7 +45,7 @@ namespace ssnet {
       
       TH1D* hclasspix_per_image = new TH1D( hname_classpix_per_image.str().c_str(),
 					    htitle_classpix_per_image.str().c_str(),
-					    50,
+					    25,
 					    0, 500 );
 
       _hnpix_per_image_v.push_back( hclasspix_per_image );

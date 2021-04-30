@@ -13,6 +13,7 @@ as a metric for the similarity of patterns found in the images.
 Loads ssnet network.
 Re-scaling of ADC distribution probably necessary, so pre-study needed here.
 
+Confirmed to work with pytorch v1.3.1.
 
 ## Training a ssnet
 
@@ -23,7 +24,8 @@ We use ROOT's tools to provide us python bindings for our C++ class.
 
 ## Weights
 
-`ssnet.iclr2021.simdl.checkpoint.run3.18000th.tar`: this was used for the simdl workshop.
+`ssnet.dlpdataset.forSimDL2021.tar`: this was used for the simdl workshop.
+Copy of the weights can be found on Zenodo.
 It was trained on the deeplearnphysics multi-particle semantic segmentation public data set.
 Trained with data augmentation.
 Pixel values were clamped from [0,500). These values were then map between [0,10).

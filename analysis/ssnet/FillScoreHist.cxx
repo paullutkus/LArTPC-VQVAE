@@ -79,14 +79,14 @@ namespace ssnet {
     
     PyArray_Descr *descr_float  = PyArray_DescrFromType(NPY_FLOAT);
 
-    npy_intp img_dims[2];
+    npy_intp img_dims[2]; // (1 value, H:64, W:64)
     float **img_carray;
     if ( PyArray_AsCArray( &np_img_array, (void**)&img_carray, img_dims, 2, descr_float )<0 ) {
       LARCV_CRITICAL() << "Cannot get carray for output img tensor" << std::endl;
       throw std::runtime_error("Cannot get carray for output img tensor");
     }
     
-    npy_intp score_dims[3];
+    npy_intp score_dims[3]; // (3 classes, H:64, W:64)
     float ***score_carray;
     if ( PyArray_AsCArray( &np_score_array, (void***)&score_carray, score_dims, 3, descr_float )<0 ) {
       LARCV_CRITICAL() << "Cannot get carray for output score tensor" << std::endl;

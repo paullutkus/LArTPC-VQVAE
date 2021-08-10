@@ -1,5 +1,5 @@
 #!/bin/bash
-CUDA_VISIBLE_DEVICES=0,1,2,3 python3 ../train.py \
+CUDA_VISIBLE_DEVICES=0,1,2,3 python3 ../test.py \
 --gpu 0 \
 --k 256 \
 --d 8 \
